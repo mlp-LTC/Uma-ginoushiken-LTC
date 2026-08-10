@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ウマ娘スコア計算ツール</title>
+<script src="https://unpkg.com/tesseract.js@v5.1.1/dist/tesseract.min.js"></script>
+<style>
+  :root{
+    --pink:#ff6fa5;
+    --yellow:#f5b400;
+    --white:#9aa0a6;
+    --bg:#f6f7fb;
+    --card:#ffffff;
+    --text:#2b2b33;
+    --sub:#767b8a;
+    --accent:#3f6fd1;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Hiragino Sans","Yu Gothic",system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:16px;
+    max-width:520px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  h1{ font-size:18px; margin:0 0 4px; }
+  p.desc{ font-size:12px; color:var(--sub); margin:0 0 16px; }
+  .card{
+    background:var(--card);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  }
+  .card h2{
+    font-size:14px;
+    margin:0 0 12px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .badge{
+    display:inline-block;
+    width:20px;height:20px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fff;
+    font-size:12px;
+    text-align:center;
+    line-height:20px;
+    flex:none;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+    gap:8px;
+  }
+  .row:last-child{margin-bottom:0;}
+  .row label{ font-size:13px; color:var(--text); flex:1; }
+  .row input{
+    width:110px;
+    padding:8px 10px;
+    border:1px solid #dcdfe6;
+    border-radius:8px;
+    font-size:14px;
+    text-align:right;
+  }
+  .swatch{
+    display:inline-block;
+    width:12px;height:12px;
+    border-radius:3px;
+    margin-right:6px;
+    vertical-align:middle;
+  }
+  .stat-hint{
+    font-size:11px;
+    color:var(--sub);
+    margin-top:-4px;
+    margin-bottom:10px;
+  }
+  .grid2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px 16px;
+  }
+  .total-card{
+    background:linear-gradient(135deg,#3f6fd1,#6f8ef0);
+    color:#fff;
+    text-align:center;
+    padding:20px;
+  }
+  .total-card .label{ font-size:13px; opacity:.9; margin-bottom:4px; }
+  .total-card .value{ font-size:32px; font-weight:700; letter-spacing:.5px; }
+  .breakdown{
+    margin-top:14px;
+    font-size:12px;
+    line-height:1.9;
+    border-top:1px solid rgba(255,255,255,0.25);
+    padding-top:10px;
+    text-align:left;
+  }
+  .breakdown .line{ display:flex; justify-content:space-between; }
+  .note{ font-size:11px; color:var(--sub); margin-top:8px; line-height:1.6; }
+  .reset-btn{
+    display:block;
+    width:100%;
+    padding:10px;
+    margin-top:4px;
+    background:#fff;
+    border:1px solid #dcdfe6;
+    border-radius:10px;
+    font-size:13px;
+    color:var(--sub);
+  }
+  .file-row{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  input[type=file]{
+    font-size:13px;
+  }
+  .action-btn{
+    padding:11px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-size:14px;
+    font-weight:600;
+  }
+  .action-btn:disabled{
+    background:#b7c3e0;
+  }
+  #ocrStatus{
+    font-size:12px;
+    color:var(--accent);
+    min-height:16px;
+  }
+  #previewWrap{
+    margin-top:8px;
+  }
+  #previewImg{
+    max-width:100%;
+    border-radius:8px;
+    display:none;
+  }
+</style>
+</head>
+<body>
+
+<h1>ウマ娘スコア計算ツール</h1>
+<p class="desc">評価点・ステータス・スキル・レース成績からスコアを自動計算します。画像を読み込んで自動入力するか、手動で数値を入力してください。</p>
+
+<div class="card">
+  <h2><span class="badge">0</span>画像から自動読み取り(実験的機能)</h2>
+  <div class="file-row">
+    <input type="file" id="imgInput" accept="image/*" multiple>
+    <button class="action-btn" id="readBtn" onclick="autoRead()">画像を解析して自動入力(複数選択可)</button>
+    <div id="ocrStatus"></div>
+    <div id="previewWrap"></div>
+  </div>
+  <canvas id="hiddenCanvas" style="display:none;"></canvas>
+  <div class="note">
+    ※スクショの解像度・トリミング範囲によって読み取り精度が変わります。特にスキルの背景色判定と「1着」の判定は誤読しやすいので、解析後は下の各項目を必ず画像と見比べて修正してください。虹色/金色の背景スキル(進化前スキルなど)は自動集計から除外されます。
+  </div>
+</div>
+
+<div class="card">
+  <h2><span class="badge">①</span>評価点</h2>
+  <div class="row">
+    <label>評価点(そのまま加算)</label>
+    <input type="number" id="evalScore" value="0">
+  </div>
+</div>
+
+<div class="card">
+  <h2><span class="badge">②</span>ステータス</h2>
+  <div class="stat-hint">各ステータスにつき 1000以上で+3000 / 1201以上で+2000 / 2001以上で+1000(累積)</div>
+  <div class="row"><label>スピード</label><input type="number" class="stat" id="stat1" value="0"></div>
+  <div class="row"><label>スタミナ</label><input type="number" class="stat" id="stat2" value="0"></div>
+  <div class="row"><label>パワー</label><input type="number" class="stat" id="stat3" value="0"></div>
+  <div class="row"><label>根性</label><input type="number" class="stat" id="stat4" value="0"></div>
+  <div class="row"><label>賢さ</label><input type="number" class="stat" id="stat5" value="0"></div>
+</div>
+
+<div class="card">
+  <h2><span class="badge">③</span>スキル(背景色ごとの個数)</h2>
+  <div class="row">
+    <label><span class="swatch" style="background:var(--pink)"></span>進化スキル(1個1500点)</label>
+    <input type="number" id="skillPink" value="0">
+  </div>
+  <div class="row">
+    <label><span class="swatch" style="background:var(--yellow)"></span>レアスキル(1個1200点)</label>
+    <input type="number" id="skillYellow" value="0">
+  </div>
+  <div class="row">
+    <label><span class="swatch" style="background:var(--white);border:1px solid #ccc"></span>白スキル(1個400点)</label>
+    <input type="number" id="skillWhite" value="0">
+  </div>
+  <div class="note">※虹色背景のスキル(とびだせ☆ポッピングシェル など)はここに含めません。</div>
+</div>
+
+<div class="card">
+  <h2><span class="badge">④</span>レース成績(1着のみ加算)</h2>
+  <div class="grid2">
+    <div class="row"><label>GI 1着(100点)</label><input type="number" id="raceGI" value="0"></div>
+    <div class="row"><label>GII 1着(70点)</label><input type="number" id="raceGII" value="0"></div>
+    <div class="row"><label>GIII 1着(50点)</label><input type="number" id="raceGIII" value="0"></div>
+    <div class="row"><label>OP 1着(20点)</label><input type="number" id="raceOP" value="0"></div>
+  </div>
+</div>
+
+<div class="card total-card">
+  <div class="label">合計スコア</div>
+  <div class="value" id="totalValue">0</div>
+  <div class="breakdown" id="breakdown"></div>
+</div>
+
+<button class="reset-btn" onclick="location.reload()">入力をリセット</button>
+
+<script>
+/* ===================== スコア計算 ===================== */
+function statScore(v){
+  let s = 0;
+  if (v >= 1000) s += 3000;
+  if (v >= 1201) s += 2000;
+  if (v >= 2001) s += 1000;
+  return s;
+}
+function num(id){
+  const v = parseFloat(document.getElementById(id).value);
+  return isNaN(v) ? 0 : v;
+}
+function calc(){
+  const evalScore = num('evalScore');
+  const stats = ['stat1','stat2','stat3','stat4','stat5'].map(num);
+  const statTotal = stats.map(statScore).reduce((a,b)=>a+b,0);
+
+  const pink = num('skillPink'), yellow = num('skillYellow'), white = num('skillWhite');
+  const skillTotal = pink*1500 + yellow*1200 + white*400;
+
+  const gi = num('raceGI'), gii = num('raceGII'), giii = num('raceGIII'), op = num('raceOP');
+  const raceTotal = gi*100 + gii*70 + giii*50 + op*20;
+
+  const total = evalScore + statTotal + skillTotal + raceTotal;
+
+  document.getElementById('totalValue').textContent = Math.round(total).toLocaleString();
+  document.getElementById('breakdown').innerHTML = `
+    <div class="line"><span>評価点</span><span>${Math.round(evalScore).toLocaleString()}</span></div>
+    <div class="line"><span>ステータス合計</span><span>${statTotal.toLocaleString()}</span></div>
+    <div class="line"><span>スキル合計</span><span>${skillTotal.toLocaleString()}</span></div>
+    <div class="line"><span>レース合計</span><span>${raceTotal.toLocaleString()}</span></div>
+  `;
+}
+document.querySelectorAll('input').forEach(el => el.addEventListener('input', calc));
+
+/* ===================== 画像自動読み取り ===================== */
+function setStatus(msg){
+  document.getElementById('ocrStatus').textContent = msg;
+}
+
+function loadImageFile(file){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function rgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h=0, s=0, l=(max+min)/2;
+  if(max!==min){
+    const d=max-min;
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case r: h=(g-b)/d + (g<b?6:0); break;
+      case g: h=(b-r)/d + 2; break;
+      case b: h=(r-g)/d + 4; break;
+    }
+    h*=60;
+  }
+  return {h,s,l};
+}
+
+function getPixel(imgData, x, y){
+  x = Math.max(0, Math.min(imgData.width-1, Math.round(x)));
+  y = Math.max(0, Math.min(imgData.height-1, Math.round(y)));
+  const idx = (y*imgData.width + x)*4;
+  return [imgData.data[idx], imgData.data[idx+1], imgData.data[idx+2]];
+}
+
+function classifyPixel(r,g,b){
+  const {h,s,l} = rgbToHsl(r,g,b);
+  if (s < 0.12 && l > 0.8) return 'white';
+  if (((h >= 300 && h <= 360) || h < 5) && s > 0.25 && l > 0.4 && l < 0.9) return 'pink';
+  if (h >= 35 && h <= 58 && s > 0.35 && l > 0.35 && l < 0.9) return 'yellow';
+  return 'other';
+}
+
+// 指定した列(x座標)を縦にスキャンし、色の帯(=スキル1個分)を数える
+function scanSkillColumn(imgData, xCenter, yStart, yEnd){
+  const results = [];
+  const step = 4;
+  let current = null, currentStart = null;
+  for (let y = yStart; y < yEnd; y += step){
+    const offsets = [-40,-15,15,40];
+    const samples = offsets.map(dx => getPixel(imgData, xCenter+dx, y));
+    const hues = samples.map(([r,g,b]) => rgbToHsl(r,g,b).h);
+    const hueSpread = Math.max(...hues) - Math.min(...hues);
+    let cls;
+    if (hueSpread > 90){
+      cls = 'rainbow';
+    } else {
+      const votes = {};
+      samples.forEach(([r,g,b]) => {
+        const c = classifyPixel(r,g,b);
+        votes[c] = (votes[c]||0) + 1;
+      });
+      cls = Object.keys(votes).reduce((a,b)=> votes[a] >= votes[b] ? a : b);
+    }
+    if (cls !== current){
+      if (current && current !== 'other' && (y - currentStart) >= 18){
+        results.push(current);
+      }
+      current = cls;
+      currentStart = y;
+    }
+  }
+  if (current && current !== 'other' && (yEnd - currentStart) >= 18){
+    results.push(current);
+  }
+  return results;
+}
+
+function normalizeGrade(t){
+  t = t.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if (t === 'G1' || t === 'GI') return 'GI';
+  if (t === 'G2' || t === 'GII') return 'GII';
+  if (t === 'G3' || t === 'GIII') return 'GIII';
+  if (t === 'OP') return 'OP';
+  return null;
+}
+
+function findValueNear(words, labelWord, maxDx, maxDy){
+  let best=null, bestDx=Infinity;
+  for (const w of words){
+    if (w === labelWord) continue;
+    if (!/\d/.test(w.text)) continue;
+    const wy = (w.bbox.y0 + w.bbox.y1)/2;
+    const ly = (labelWord.bbox.y0 + labelWord.bbox.y1)/2;
+    const dy = Math.abs(wy - ly);
+    const dx = w.bbox.x0 - labelWord.bbox.x1;
+    if (dy <= maxDy && dx >= -20 && dx <= maxDx && dx < bestDx){
+      bestDx = dx; best = w;
+    }
+  }
+  return best;
+}
+
+// 1枚の画像を解析して結果オブジェクトを返す
+async function analyzeImage(file, index, total){
+  const img = await loadImageFile(file);
+
+  // プレビューに追加
+  const previewWrap = document.getElementById('previewWrap');
+  const thumb = document.createElement('img');
+  thumb.src = img.src;
+  thumb.style.maxWidth = '31%';
+  thumb.style.marginRight = '2%';
+  thumb.style.borderRadius = '8px';
+  thumb.style.display = 'inline-block';
+  previewWrap.appendChild(thumb);
+
+  const canvas = document.getElementById('hiddenCanvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+
+  const { data } = await Tesseract.recognize(canvas, 'jpn+eng', {
+    logger: m => {
+      if (m.status === 'recognizing text'){
+        setStatus(`(${index+1}/${total}枚目) 文字を読み取り中… ${Math.round((m.progress||0)*100)}%`);
+      } else {
+        setStatus(`(${index+1}/${total}枚目) ${m.status}`);
+      }
+    }
+  });
+
+  const words = data.words || [];
+  const result = {
+    evalScore: 0,
+    stats: {stat1:0, stat2:0, stat3:0, stat4:0, stat5:0},
+    race: {GI:0, GII:0, GIII:0, OP:0},
+    skill: {pink:0, yellow:0, white:0}
+  };
+
+  // --- 評価点 ---
+  const evalCandidates = words.filter(w =>
+    /^\d{1,3},\d{3}$/.test(w.text.trim()) && w.bbox.y0 < H*0.35
+  );
+  if (evalCandidates.length){
+    result.evalScore = parseNumStr(evalCandidates[0].text);
+  }
+
+  // --- ステータス ---
+  const statLabelMap = [
+    {id:'stat1', patterns:['スピード']},
+    {id:'stat2', patterns:['スタミナ']},
+    {id:'stat3', patterns:['パワー']},
+    {id:'stat4', patterns:['根性']},
+    {id:'stat5', patterns:['賢さ','賢']}
+  ];
+  for (const s of statLabelMap){
+    const labelWord = words.find(w => s.patterns.some(p => w.text.includes(p)));
+    if (labelWord){
+      const valWord = findValueNear(words, labelWord, 250, 25);
+      if (valWord){
+        result.stats[s.id] = parseNumStr(valWord.text);
+      }
+    }
+  }
+
+  // --- レース成績 ---
+  for (const w of words){
+    const g = normalizeGrade(w.text.trim());
+    if (!g) continue;
+    const rowY = (w.bbox.y0 + w.bbox.y1)/2;
+    const hasWin = words.some(ww =>
+      ww.text.includes('着') &&
+      Math.abs(((ww.bbox.y0+ww.bbox.y1)/2) - rowY) <= 70
+    );
+    if (hasWin) result.race[g]++;
+  }
+
+  // --- スキル背景色 ---
+  const skillTabWord = words.find(w => w.text.includes('スキル'));
+  if (skillTabWord){
+    const yStart = skillTabWord.bbox.y1 + 15;
+    const yEnd = H * 0.98;
+    const leftX = W * 0.20;
+    const rightX = W * 0.70;
+    const leftRows = scanSkillColumn(imgData, leftX, yStart, yEnd);
+    const rightRows = scanSkillColumn(imgData, rightX, yStart, yEnd);
+    [...leftRows, ...rightRows].forEach(c => { if (result.skill[c] !== undefined) result.skill[c]++; });
+  }
+
+  return result;
+}
+
+async function autoRead(){
+  const fileInput = document.getElementById('imgInput');
+  const files = Array.from(fileInput.files || []);
+  if (!files.length){
+    setStatus('画像を選択してください');
+    return;
+  }
+  const btn = document.getElementById('readBtn');
+  btn.disabled = true;
+  document.getElementById('previewWrap').innerHTML = '';
+
+  // 解析結果をまとめるための集計値(このボタンを押すたびに0からやり直す)
+  const merged = {
+    evalScore: 0,
+    stats: {stat1:0, stat2:0, stat3:0, stat4:0, stat5:0},
+    race: {GI:0, GII:0, GIII:0, OP:0},
+    skill: {pink:0, yellow:0, white:0}
+  };
+
+  try{
+    for (let i=0; i<files.length; i++){
+      const r = await analyzeImage(files[i], i, files.length);
+
+      // 評価点・ステータスは「まだ見つかっていなければ採用」(複数画像に同じ数値が重複表示されるため)
+      if (merged.evalScore === 0 && r.evalScore > 0) merged.evalScore = r.evalScore;
+      for (const key of Object.keys(merged.stats)){
+        if (merged.stats[key] === 0 && r.stats[key] > 0) merged.stats[key] = r.stats[key];
+      }
+      // スキル・レースは画像ごとに別の一覧が写っていることが多いので合算
+      for (const key of Object.keys(merged.race)) merged.race[key] += r.race[key];
+      for (const key of Object.keys(merged.skill)) merged.skill[key] += r.skill[key];
+    }
+
+    document.getElementById('evalScore').value = merged.evalScore;
+    document.getElementById('stat1').value = merged.stats.stat1;
+    document.getElementById('stat2').value = merged.stats.stat2;
+    document.getElementById('stat3').value = merged.stats.stat3;
+    document.getElementById('stat4').value = merged.stats.stat4;
+    document.getElementById('stat5').value = merged.stats.stat5;
+    document.getElementById('skillPink').value = merged.skill.pink;
+    document.getElementById('skillYellow').value = merged.skill.yellow;
+    document.getElementById('skillWhite').value = merged.skill.white;
+    document.getElementById('raceGI').value = merged.race.GI;
+    document.getElementById('raceGII').value = merged.race.GII;
+    document.getElementById('raceGIII').value = merged.race.GIII;
+    document.getElementById('raceOP').value = merged.race.OP;
+
+    calc();
+    setStatus(`読み取り完了(${files.length}枚)。内容を画像と見比べて、必要に応じて数値を修正してください。`);
+  } catch (err){
+    console.error(err);
+    setStatus('読み取りに失敗しました。手動で入力してください。');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function parseNumStr(text){
+  const cleaned = text.replace(/[^\d]/g,'');
+  return cleaned ? parseInt(cleaned,10) : 0;
+}
+
+calc();
+</script>
+
+</body>
+</html>
