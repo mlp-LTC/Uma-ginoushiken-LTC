@@ -1,1 +1,0 @@
-# Uma-ginoushiken-LTC
