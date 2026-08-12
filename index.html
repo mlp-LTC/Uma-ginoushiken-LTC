@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ウマ娘スコア計算ツール</title>
+<title>スコア計算ツール</title>
 <script src="https://unpkg.com/tesseract.js@v5.1.1/dist/tesseract.min.js"></script>
 <style>
   :root{
@@ -155,20 +155,23 @@
 </head>
 <body>
 
-<h1>ウマ娘スコア計算ツール</h1>
-<p class="desc">評価点・ステータス・スキル・レース成績からスコアを自動計算します。画像を読み込んで自動入力するか、手動で数値を入力してください。</p>
+<h1>スコア計算ツール</h1>
+<p class="desc">評価点、ステータス、各スキル数、１着レース数を入力すると自動で計算結果が出ます。</p>
 
 <div class="card">
-  <h2><span class="badge">0</span>画像から自動読み取り(実験的機能)</h2>
+  <h2><span class="badge">0</span>画像から自動入力</h2>
   <div class="file-row">
     <input type="file" id="imgInput" accept="image/*" multiple>
-    <button class="action-btn" id="readBtn" onclick="autoRead()">画像を解析して自動入力(複数選択可)</button>
+    <button class="action-btn" id="readBtn" onclick="autoRead()">ここをタップ</button>
     <div id="ocrStatus"></div>
     <div id="previewWrap"></div>
   </div>
   <canvas id="hiddenCanvas" style="display:none;"></canvas>
   <div class="note">
-    ※スクショの解像度・トリミング範囲によって読み取り精度が変わります。解析後は下の各項目を必ず画像と見比べて修正してください。固有スキル(とびだせ☆ポッピングシェル など)は自動集計から除外されます。レースのOPはPre-OPも合算してカウントします。
+    ※精度向上には努めておりますが、スキル数のインフレにより精度が安定しておりません。必ず出力された内容と画像を見比べて修正してください。
+    固有スキルは自動で除外されます。
+    レースは色で判別しているためOPはPre-OPも含んでいます。
+    また、キャラによっては髪の色などを誤認識することがあるためこちらもご確認をお願いします。
   </div>
 </div>
 
@@ -190,29 +193,29 @@
 </div>
 
 <div class="card">
-  <h2><span class="badge">③</span>スキル(背景色ごとの個数)</h2>
+  <h2><span class="badge">③</span>スキル</h2>
   <div class="row">
-    <label><span class="swatch" style="background:var(--pink)"></span>進化スキル(1個1500点)</label>
+    <label><span class="swatch" style="background:var(--pink)"></span>進化スキル</label>
     <input type="number" id="skillPink" value="0">
   </div>
   <div class="row">
-    <label><span class="swatch" style="background:var(--yellow)"></span>レアスキル(1個1200点)</label>
+    <label><span class="swatch" style="background:var(--yellow)"></span>レアスキル</label>
     <input type="number" id="skillYellow" value="0">
   </div>
   <div class="row">
-    <label><span class="swatch" style="background:var(--white);border:1px solid #ccc"></span>白スキル(1個400点)</label>
+    <label><span class="swatch" style="background:var(--white);border:1px solid #ccc"></span>白スキル</label>
     <input type="number" id="skillWhite" value="0">
   </div>
-  <div class="note">※固有スキル(とびだせ☆ポッピングシェル など)はここに含めません。</div>
+  <div class="note">※固有スキルはここに含めません。進化継承、大逃げは含みます。</div>
 </div>
 
 <div class="card">
-  <h2><span class="badge">④</span>レース成績(1着のみ加算)</h2>
+  <h2><span class="badge">④</span>レース成績(1着のみ)</h2>
   <div class="grid2">
-    <div class="row"><label>GI 1着(100点)</label><input type="number" id="raceGI" value="0"></div>
-    <div class="row"><label>GII 1着(70点)</label><input type="number" id="raceGII" value="0"></div>
-    <div class="row"><label>GIII 1着(50点)</label><input type="number" id="raceGIII" value="0"></div>
-    <div class="row"><label>OP 1着(20点)</label><input type="number" id="raceOP" value="0"></div>
+    <div class="row"><label>GI 1着</label><input type="number" id="raceGI" value="0"></div>
+    <div class="row"><label>GII 1着</label><input type="number" id="raceGII" value="0"></div>
+    <div class="row"><label>GIII 1着</label><input type="number" id="raceGIII" value="0"></div>
+    <div class="row"><label>OP 1着</label><input type="number" id="raceOP" value="0"></div>
   </div>
 </div>
 
